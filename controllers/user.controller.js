@@ -1,5 +1,5 @@
 import User from "../models/user.model.js";
-import { errorHandler } from "../utils/error.js";
+import { errorHandler } from "../middleware/error.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -93,23 +93,22 @@ export const updateProfile = async (req, res, next) => {
       skillsArray = skills.split(",");
     }
     const userId = req.id;
-    const user = await User.findById(userId); 
-    
+    const user = await User.findById(userId);
+
     if (!user) {
       return next(errorHandler(404, "User Not Found"));
     }
-    
+
     if (fullName) user.fullName = fullName;
     if (email) user.email = email;
     if (phoneNumber) user.phoneNumber = phoneNumber;
     if (bio) user.profile.bio = bio;
     if (skills) user.profile.skills = skillsArray;
-    
-    await user.save(); 
-    
- 
+
+    await user.save();
+
     user.password = undefined;
-    
+
     return res.status(200).json({
       message: "Profile Updated Successfully..!",
       success: true,
