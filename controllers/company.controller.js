@@ -1,5 +1,6 @@
 import { errorHandler } from "../middleware/error.js";
 import Company from "../models/company.model.js";
+
 export const registerCompany = async (req, res, next) => {
   try {
     const { companyName } = req.body;
