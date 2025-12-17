@@ -13,7 +13,10 @@ export const register = async (req, res, next) => {
     if (isExist) {
       return next(errorHandler(400, "User Already Registered..!"));
     }
-    const hashPassword = await bcrypt.hash(password, 10);
+    const hashPassword = await bcrypt.hash(
+      password,
+      Number(process.env.HASH_SALT)
+    );
     const user = await User.create({
       fullName,
       email,
@@ -34,36 +37,41 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   try {
-    const { email, password, role } = req.body;
-    if (!email || !password || !role) {
-      return next(errorHandler(400, "Some Thing is missing..!"));
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return next(errorHandler(400, "Email or password is missing..!"));
     }
-    const user = await User.findOne({ email });
+    let user = await User.findOne({ email })
     if (!user) {
-      return next(errorHandler(400, "Invalid Credentials..!"));
+      return next(errorHandler(400, "Invalid credentials..!"));
     }
-    const checkPassword = await bcrypt.compare(password, user.password);
-    if (!checkPassword) {
-      return next(errorHandler(400, "Invalid Credentials..!"));
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return next(errorHandler(400, "Invalid credentials..!"));
     }
-    if (role !== user.role) {
-      return next(errorHandler(400, "User Is Not Valid For This Role..!"));
-    }
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, {
-      expiresIn: "1d",
-    });
-
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET_KEY,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
     user.password = undefined;
+    user = {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      profile: user.profile,
+    };
     return res
       .cookie("token", token, {
-        maxAge: 1 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        secure: false,
-        sameSite: "none",
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: Number(process.env.COOKIE_EXPIRES_IN),
       })
       .status(200)
       .json({
-        message: "User Loggined Successfully..!",
+        message: `Welcome ${user.fullName}`,
         success: true,
         user,
       });
@@ -74,45 +82,60 @@ export const login = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    return res.cookie("token", "", { maxAge: 0 }).status(200).json({
-      message: "User Logout Successfully..!",
-      success: true,
-    });
+    return res
+      .clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      })
+      .status(200)
+      .json({
+        success: true,
+        message: "User logged out successfully!",
+      });
   } catch (error) {
     next(errorHandler(500, error.message));
-    console.log(error.message);
   }
 };
-
 export const updateProfile = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, bio, skills } = req.body;
-    const file = req.file;
-    let skillsArray;
-    if (skills) {
-      skillsArray = skills.split(",");
-    }
-    const userId = req.id;
-    const user = await User.findById(userId);
-
+    const user = req.user;
     if (!user) {
       return next(errorHandler(404, "User Not Found"));
+    }
+
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return next(errorHandler(400, "Email already in use"));
+      }
     }
 
     if (fullName) user.fullName = fullName;
     if (email) user.email = email;
     if (phoneNumber) user.phoneNumber = phoneNumber;
     if (bio) user.profile.bio = bio;
-    if (skills) user.profile.skills = skillsArray;
+    if (skills) {
+      user.profile.skills = skills
+        .split(",")
+        .map((skill) => skill.trim())
+        .filter((skill) => skill.length > 0);
+    }
 
     await user.save();
-
     user.password = undefined;
-
+    const responseUser = {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      profile: user.profile,
+    };
     return res.status(200).json({
       message: "Profile Updated Successfully..!",
       success: true,
-      user,
+      user: responseUser,
     });
   } catch (error) {
     next(errorHandler(500, error.message));

@@ -12,7 +12,7 @@ export const isAuthenticated = async (req, res, next) => {
     if (!user) {
       return next(errorHandler(404, "User Not Found.."));
     }
-    req.id = user._id;
+    req.user = user;
     next();
   } catch (error) {
     next(errorHandler(500, error.message));
