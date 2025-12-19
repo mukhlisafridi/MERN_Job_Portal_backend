@@ -15,10 +15,13 @@ export const registerCompany = async (req, res, next) => {
     }
     company = await Company.create({
       name: companyName,
-      userId: req.id,
+      userId: req.user._id,
     });
+    // to save company ID in user model
+    // req.user.profile.company = company._id;
+    // await req.user.save();
     return res.status(201).json({
-      message: "Company Registered Successfully..!",
+      message: `Welcome ${req.user.fullName} to ${company.name}`,
       success: true,
       company,
     });
@@ -27,24 +30,25 @@ export const registerCompany = async (req, res, next) => {
     return next(errorHandler(500, error.message));
   }
 };
+
 export const getCompany = async (req, res, next) => {
   try {
-    const userId = req.id;
+    const userId = req.user._id;
     const companies = await Company.find({ userId });
-    if (!companies) {
-      return next(errorHandler(404, "Company Not Found..!"));
+    if (!companies || companies.length === 0) {
+      return next(errorHandler(404, "Company Not Found..!"))
     }
     return res.status(200).json({
       message: "All Companies",
       success: true,
       companies,
-    });
+    })
   } catch (error) {
     console.log(error.message);
-
     return next(errorHandler(500, error.message));
   }
 };
+
 export const getCompanyById = async (req, res, next) => {
   try {
     const companyId = req.params.id;
@@ -53,7 +57,7 @@ export const getCompanyById = async (req, res, next) => {
       return next(errorHandler(404, "Company Not Found"));
     }
     return res.status(200).json({
-      message: " Company",
+      message: "Company",
       success: true,
       company,
     });
@@ -66,16 +70,27 @@ export const getCompanyById = async (req, res, next) => {
 export const updateCompany = async (req, res, next) => {
   try {
     const { name, description, website, location } = req.body;
-    const file = req.file;
-    const updateData = { name, description, website, location };
-    const company = await Company.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-    });
+    const companyId = req.params.id;
+    const userId = req.user._id;
+
+    const company = await Company.findById(companyId);
     if (!company) {
       return next(errorHandler(404, "Company Not Found..!"));
     }
+
+    if (company.userId.toString() !== userId.toString()) {
+      return next(errorHandler(403, "You are not allowed to update this company"));
+    }
+
+    if (name) company.name = name;
+    if (description) company.description = description;
+    if (website) company.website = website;
+    if (location) company.location = location;
+
+    await company.save();
+
     return res.status(200).json({
-      message: "Company Data Updated..!",
+      message: "Company updated successfully!",
       success: true,
       company,
     });
