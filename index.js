@@ -20,8 +20,10 @@ const PORT = process.env.PORT || 8080;
 // routes
 import userRoutes from "./routes/user.route.js";
 import companyRoutes from "./routes/company.route.js";
+import jobRoutes from "./routes/job.route.js";
 app.use("/user", userRoutes);
 app.use("/company", companyRoutes);
+app.use("/job", jobRoutes);
 // DB
 connectDB();
 
