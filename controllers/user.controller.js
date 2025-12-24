@@ -6,6 +6,8 @@ import jwt from "jsonwebtoken";
 export const register = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, password, role } = req.body;
+      console.log(req.body); 
+    console.log(req.file); 
     if (!fullName || !email || !phoneNumber || !password || !role) {
       return next(errorHandler(400, "Some Thing is missing..!"));
     }
