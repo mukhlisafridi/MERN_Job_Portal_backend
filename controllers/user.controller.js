@@ -2,12 +2,18 @@ import User from "../models/user.model.js";
 import { errorHandler } from "../middleware/error.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import getDataUri from "../utils/datauri.js";
+import cloudinary from "../utils/cloudinary.js";
 
 export const register = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, password, role } = req.body;
-      console.log(req.body); 
-    console.log(req.file); 
+    //clouinary
+    const file = req.file;
+    const fileUri = getDataUri(file);
+    const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    console.log("profile Image==>", cloudResponse);
+
     if (!fullName || !email || !phoneNumber || !password || !role) {
       return next(errorHandler(400, "Some Thing is missing..!"));
     }
@@ -25,6 +31,9 @@ export const register = async (req, res, next) => {
       phoneNumber,
       password: hashPassword,
       role,
+      profile: {
+        profilePhoto: cloudResponse.secure_url,
+      },
     });
     user.password = undefined;
     return res.status(201).json({
@@ -43,7 +52,7 @@ export const login = async (req, res, next) => {
     if (!email || !password) {
       return next(errorHandler(400, "Email or password is missing..!"));
     }
-    let user = await User.findOne({ email })
+    let user = await User.findOne({ email });
     if (!user) {
       return next(errorHandler(400, "Invalid credentials..!"));
     }
@@ -63,6 +72,7 @@ export const login = async (req, res, next) => {
       email: user.email,
       role: user.role,
       profile: user.profile,
+      phoneNumber: user.phoneNumber,
     };
     return res
       .cookie("token", token, {
@@ -102,6 +112,16 @@ export const logout = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, bio, skills } = req.body;
+
+    // Cloudinary upload with proper configuration
+    const file = req.file;
+    let cloudResponse;
+
+    if (file) {
+      const fileUri = getDataUri(file);
+      cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+    }
+
     const user = req.user;
     if (!user) {
       return next(errorHandler(404, "User Not Found"));
@@ -124,16 +144,27 @@ export const updateProfile = async (req, res, next) => {
         .map((skill) => skill.trim())
         .filter((skill) => skill.length > 0);
     }
+    console.log(cloudResponse);
+    //  Save resume only if upload successful
+    if (file && cloudResponse) {
+      user.profile.resume = cloudResponse.secure_url;
+      user.profile.resumeOriginalName = file.originalname;
+    }
+    console.log(file);
 
     await user.save();
     user.password = undefined;
+    console.log(user.profile);
+
     const responseUser = {
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
+      phoneNumber: user.phoneNumber,
       role: user.role,
       profile: user.profile,
     };
+
     return res.status(200).json({
       message: "Profile Updated Successfully..!",
       success: true,
