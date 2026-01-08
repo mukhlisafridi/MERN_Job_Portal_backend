@@ -8,23 +8,30 @@ import cloudinary from "../utils/cloudinary.js";
 export const register = async (req, res, next) => {
   try {
     const { fullName, email, phoneNumber, password, role } = req.body;
-    //clouinary
-    const file = req.file;
-    const fileUri = getDataUri(file);
-    const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-    console.log("profile Image==>", cloudResponse);
 
     if (!fullName || !email || !phoneNumber || !password || !role) {
-      return next(errorHandler(400, "Some Thing is missing..!"));
+      return next(errorHandler(400, "Something is missing"));
     }
+
     const isExist = await User.findOne({ email });
     if (isExist) {
-      return next(errorHandler(400, "User Already Registered..!"));
+      return next(errorHandler(400, "User already registered"));
     }
+
+    let profilePhoto = "";
+    const file = req.file;
+
+    if (file) {
+      const fileUri = getDataUri(file);
+      const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+      profilePhoto = cloudResponse.secure_url;
+    }
+
     const hashPassword = await bcrypt.hash(
       password,
       Number(process.env.HASH_SALT)
     );
+
     const user = await User.create({
       fullName,
       email,
@@ -32,13 +39,15 @@ export const register = async (req, res, next) => {
       password: hashPassword,
       role,
       profile: {
-        profilePhoto: cloudResponse.secure_url,
+        profilePhoto,
       },
     });
+
     user.password = undefined;
+
     return res.status(201).json({
-      message: "User Registered Successfully..!",
       success: true,
+      message: "User Registered Successfully",
       user,
     });
   } catch (error) {
